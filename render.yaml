@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: fastapi-backend
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "./start.sh"
+    envVars:
+      - key: DB_SERVER
+        value: "tcp:inovabyte2.database.windows.net,1433"
+      - key: DB_DATABASE
+        value: "Inovabyte2"
+      - key: DB_USERNAME
+        value: "geovanydominguez"
+      - key: DB_PASSWORD
+        value: "Flacodeoro55"

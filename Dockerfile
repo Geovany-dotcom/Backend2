@@ -1,32 +1,26 @@
-# Usa una imagen base oficial de Python
-FROM python:3.11
+# Usa una imagen base de Python
+FROM python:3.11-slim
 
-# Establece el directorio de trabajo
-WORKDIR /app
-
-# Copia los archivos de requisitos y el script de inicio a la imagen
-COPY requirements.txt .
-COPY start.sh .
-
-# Actualiza los paquetes del sistema e instala las dependencias necesarias
+# Instala las dependencias necesarias
 RUN apt-get update && apt-get install -y \
     curl \
-    apt-transport-https \
-    unixodbc-dev \
     gnupg \
-    && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
-    && curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list > /etc/apt/sources.list.d/mssql-release.list \
-    && apt-get update \
+    unixodbc-dev
+
+# Agrega la clave y repositorio para el controlador ODBC de Microsoft
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
+    && curl https://packages.microsoft.com/config/debian/10/prod.list > /etc/apt/sources.list.d/mssql-release.list
+
+# Instala el controlador ODBC de Microsoft
+RUN apt-get update \
     && ACCEPT_EULA=Y apt-get install -y msodbcsql17
 
 # Instala las dependencias de Python
+COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# Copia el resto del código de la aplicación
+# Copia el resto del código de tu aplicación
 COPY . .
 
-# Establece permisos ejecutables para el script de inicio
-RUN chmod +x start.sh
-
-# Comando para ejecutar el script de inicio
+# Comando para iniciar tu aplicación
 CMD ["./start.sh"]

@@ -32,7 +32,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins="https://pagina-final-6q1xdn0mh.vercel.app",
     allow_credentials=True,
     allow_methods=["*"],  # Ajusta según los métodos que necesites permitir
     allow_headers=["*"],  # Puedes limitar las cabeceras específicas si es necesario

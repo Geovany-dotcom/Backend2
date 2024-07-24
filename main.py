@@ -35,53 +35,44 @@ app.add_middleware(
 )
 
 # Función para ejecutar consultas
-def ejecutar_consulta(query):
+def ejecutar_consulta(query, params=None):
     try:
         conn = pymssql.connect(server=server, user=username, password=password, database=database)
         cursor = conn.cursor(as_dict=True)
-        cursor.execute(query)
-        resultados = cursor.fetchall()
-        conn.close()
-        return resultados
-    except Exception as e:
-        print(f"Error al conectar con la base de datos: {e}")
-        return []
-
-
-# Prueba de conexión
-try:
-    conn = pyodbc.connect(conn_str)
-    print("Connection successful")
-except Exception as e:
-    print(f"Connection failed: {e}")
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-def ejecutar_consulta(query, params=None):
-    with pyodbc.connect(conn_str) as conn:
-        cursor = conn.cursor()
         if params:
             cursor.execute(query, params)
         else:
             cursor.execute(query)
         if query.strip().upper().startswith("SELECT"):
-            rows = cursor.fetchall()
-            return rows
+            resultados = cursor.fetchall()
+            conn.close()
+            return resultados
         else:
             conn.commit()
+            conn.close()
             return True
+    except Exception as e:
+        print(f"Error al conectar con la base de datos: {e}")
+        return []
 
 def registrar_auditoria(tipo_operacion, tabla, registro_id, usuario):
     query = """
     INSERT INTO AuditoriaCRUD (TipoOperacion, Tabla, RegistroID, Usuario)
-    VALUES (?, ?, ?, ?);
+    VALUES (%s, %s, %s, %s);
     """
     params = (tipo_operacion, tabla, registro_id, usuario)
     ejecutar_consulta(query, params)
-    
-    
+
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+
+@app.get("/productos")
+async def obtener_productos():
+    query = "SELECT * FROM Productos"
+    productos = ejecutar_consulta(query)
+    return productos
+
 
 class ClienteCreate(BaseModel):
     nombre: str

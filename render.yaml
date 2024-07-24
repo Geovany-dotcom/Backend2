@@ -9,7 +9,7 @@ services:
       - key: DB_SERVER
         value: "tcp:inovabyte2.database.windows.net,1433"
       - key: DB_DATABASE
-        value: "TiendaOnline45"
+        value: "Inovabyte2"
       - key: DB_USERNAME
         value: "geovanydominguez"
       - key: DB_PASSWORD

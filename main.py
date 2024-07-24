@@ -228,10 +228,10 @@ async def registrar_cliente(cliente: ClienteCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 # Endpoint de inicio de sesión
-@app.post("/login", response_model=LoginResponse)
-async def iniciar_sesion(login: LoginRequest, request: Request):
+@app.post("/login")
+async def iniciar_sesion(login: LoginRequest):
     try:
-        print(f"Recibido: nombre_usuario={login.nombre_usuario}, contrasena={login.contrasena}")
+        print(f"Intentando iniciar sesión: nombre_usuario={login.nombre_usuario}")
 
         # Verificar si el usuario es un cliente
         query_cliente = """
@@ -246,7 +246,7 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
             print(f"Cliente encontrado: ClienteID={cliente_id}")
 
             if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
-                # Manejo de sesión
+                # Manejo de sesión para el cliente
                 query_sesion = """
                 IF EXISTS (SELECT 1 FROM SesionesClientes WHERE ClienteID = %s)
                     UPDATE SesionesClientes SET FechaInicio = GETDATE(), IP = %s WHERE ClienteID = %s
@@ -257,7 +257,7 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
                 params_sesion = (cliente_id, client_ip, cliente_id, cliente_id, client_ip)
                 ejecutar_consulta(query_sesion, params_sesion)
 
-                return LoginResponse(mensaje="Inicio de sesión exitoso", tipo_usuario="cliente")
+                return {"mensaje": "Inicio de sesión exitoso", "tipo_usuario": "cliente"}
 
         # Verificar si el usuario es un administrador
         query_admin = """
@@ -272,12 +272,13 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
             print(f"Administrador encontrado: AdministradorID={administrador_id}")
 
             if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
-                return LoginResponse(mensaje="Inicio de sesión exitoso", tipo_usuario="administrador")
+                return {"mensaje": "Inicio de sesión exitoso", "tipo_usuario": "administrador"}
 
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     except Exception as e:
         print(f"Error durante el inicio de sesión: {str(e)}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
+
 
 
 @app.post("/logout", response_model=LoginResponse)

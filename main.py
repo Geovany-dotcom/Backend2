@@ -108,8 +108,6 @@ class LoginRequest(BaseModel):
     nombre_usuario: str
     contrasena: str
     
-# Modelo Pydantic para la solicitud de cierre de sesión
-
 
 class LoginResponse(BaseModel):
     mensaje: str
@@ -228,8 +226,10 @@ async def registrar_cliente(cliente: ClienteCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 # Endpoint de inicio de sesión
+from fastapi import Request
+
 @app.post("/login")
-async def iniciar_sesion(login: LoginRequest):
+async def iniciar_sesion(login: LoginRequest, request: Request):
     try:
         print(f"Intentando iniciar sesión: nombre_usuario={login.nombre_usuario}")
 

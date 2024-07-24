@@ -65,9 +65,6 @@ def ejecutar_consulta(query, params=None):
     except Exception as e:
         print(f"Error al conectar con la base de datos: {e}")
         return None
-
-app.mount("/static", StaticFiles(directory="path/to/static/files"), name="static")
-
 # Prueba de conexión
 try:
     conn = pymssql.connect(server=server, user=username, password=password, database=database)
@@ -160,11 +157,11 @@ class Venta(BaseModel):
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Definir rutas que no requieren autenticación
-        allowed_paths = ["/login", "/cliente/registrar", "/static/Login/CargaLogin.html", "/productos"]
+        allowed_paths = ["/login", "/cliente/registrar", "/CargaLogin.html", "/productos"]
 
         # Permitir acceso público a las rutas permitidas
         if request.url.path not in allowed_paths and not usuario_actual.get("nombre_usuario"):
-            return RedirectResponse(url='/static/Login/CargaLogin.html')
+            return RedirectResponse(url='/CargaLogin.html')
         
         # Llamar al siguiente middleware o al controlador de endpoint
         response = await call_next(request)

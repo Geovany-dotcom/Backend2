@@ -9,21 +9,20 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 import bcrypt
-from typing import List, Dict
 
 app = FastAPI()
 
-server = os.getenv('inovabyte2.database.windows.net')
-database = os.getenv('Inovabyte2')
-username = os.getenv('geovanydominguez')
-password = os.getenv('Flacodeoro55')
+# Cargar las variables de entorno
+server = os.getenv('DB_SERVER')
+database = os.getenv('DB_DATABASE')
+username = os.getenv('DB_USERNAME')
+password = os.getenv('DB_PASSWORD')
 
 # Configuración de CORS para permitir el origen específico y credenciales
 origins = [
     "http://127.0.0.1:5500",  # Reemplaza con la URL exacta de tu frontend
     "http://127.0.0.1:52727",
     "http://127.0.0.1:60642",
-    "https://geovany-dotcom.github.io/Pagina-Web23/"
 ]
 
 app.add_middleware(
@@ -34,10 +33,9 @@ app.add_middleware(
     allow_headers=["*"],  # Puedes limitar las cabeceras específicas si es necesario
 )
 
-if username and password:
-    conn_str = f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}'
-else:
-    conn_str = f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes'
+# Cadena de conexión a la base de datos
+conn_str = f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}'
+
 
 # Prueba de conexión
 try:

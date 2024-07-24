@@ -32,7 +32,13 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins="https://pagina-final-6q1xdn0mh.vercel.app",
+    allow_origins=[
+        "http://127.0.0.1:5500",  # Reemplaza con la URL exacta de tu frontend
+        "http://127.0.0.1:52727",
+        "http://127.0.0.1:60642",
+        "https://pagina-final-theta.vercel.app",
+        "https://pagina-final-6q1xdn0mh.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],  # Ajusta según los métodos que necesites permitir
     allow_headers=["*"],  # Puedes limitar las cabeceras específicas si es necesario

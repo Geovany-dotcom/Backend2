@@ -200,7 +200,6 @@ def admin_page():
         raise HTTPException(status_code=403, detail="Access forbidden: insufficient permissions")
     return {"message": "Access granted"}
 
-
 @app.post("/cliente/registrar")
 async def registrar_cliente(cliente: ClienteCreate):
     try:
@@ -209,7 +208,7 @@ async def registrar_cliente(cliente: ClienteCreate):
         
         query = """
         INSERT INTO Clientes (Nombre, Apellido, CorreoElectronico, NombreUsuario, Contrasena)
-        VALUES (?, ?, ?, ?, ?);
+        VALUES (%s, %s, %s, %s, %s);
         """
         params = (cliente.nombre, cliente.apellido, cliente.correo_electronico, cliente.nombre_usuario, hashed_password.decode('utf-8'))
         ejecutar_consulta(query, params)
@@ -222,13 +221,14 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
     try:
         # Verificar si el usuario es un cliente
         query_cliente = """
-        SELECT ClienteID, Contrasena FROM Clientes WHERE NombreUsuario = ?;
+        SELECT ClienteID, Contrasena FROM Clientes WHERE NombreUsuario = %s;
         """
         params_cliente = (login.nombre_usuario,)
         resultado_cliente = ejecutar_consulta(query_cliente, params_cliente)
         
         if resultado_cliente:
-            cliente_id, hashed_password = resultado_cliente[0]
+            cliente_id = resultado_cliente[0]['ClienteID']
+            hashed_password = resultado_cliente[0]['Contrasena']
             if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
                 usuario_actual["tipo_usuario"] = "cliente"
                 usuario_actual["nombre_usuario"] = login.nombre_usuario
@@ -236,10 +236,10 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
 
                 # Registrar o actualizar sesión del cliente
                 query_sesion = """
-                IF EXISTS (SELECT 1 FROM SesionesClientes WHERE ClienteID = ?)
-                    UPDATE SesionesClientes SET FechaInicio = GETDATE(), IP = ? WHERE ClienteID = ?
+                IF EXISTS (SELECT 1 FROM SesionesClientes WHERE ClienteID = %s)
+                    UPDATE SesionesClientes SET FechaInicio = GETDATE(), IP = %s WHERE ClienteID = %s
                 ELSE
-                    INSERT INTO SesionesClientes (ClienteID, FechaInicio, IP) VALUES (?, GETDATE(), ?);
+                    INSERT INTO SesionesClientes (ClienteID, FechaInicio, IP) VALUES (%s, GETDATE(), %s);
                 """
                 client_ip = request.client.host
                 params_sesion = (usuario_actual["cliente_id"], client_ip, usuario_actual["cliente_id"], usuario_actual["cliente_id"], client_ip)
@@ -249,13 +249,14 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
 
         # Verificar si el usuario es un administrador
         query_admin = """
-        SELECT AdministradorID, Contrasena FROM Administradores WHERE NombreUsuario = ?;
+        SELECT AdministradorID, Contrasena FROM Administradores WHERE NombreUsuario = %s;
         """
         params_admin = (login.nombre_usuario,)
         resultado_admin = ejecutar_consulta(query_admin, params_admin)
 
         if resultado_admin:
-            administrador_id, contrasena = resultado_admin[0]
+            administrador_id = resultado_admin[0]['AdministradorID']
+            contrasena = resultado_admin[0]['Contrasena']
             if login.contrasena == contrasena:
                 usuario_actual["tipo_usuario"] = "administrador"
                 usuario_actual["nombre_usuario"] = login.nombre_usuario
@@ -265,8 +266,7 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-  
-    
+
 @app.post("/logout", response_model=LoginResponse)
 def cerrar_sesion():
     try:
@@ -278,7 +278,7 @@ def cerrar_sesion():
             query = """
             UPDATE SesionesClientes
             SET FechaCierre = GETDATE()
-            WHERE ClienteID = ? AND FechaCierre IS NULL;
+            WHERE ClienteID = %s AND FechaCierre IS NULL;
             """
             ejecutar_consulta(query, (cliente_id,))
         
@@ -290,7 +290,6 @@ def cerrar_sesion():
         return {"mensaje": "Sesión cerrada exitosamente"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
 
 @app.get("/sesiones-clientes", response_model=List[dict])
 def obtener_sesiones_clientes():
@@ -303,36 +302,19 @@ def obtener_sesiones_clientes():
         sesiones = ejecutar_consulta(query)
         lista_sesiones = [
             {
-                "SesionID": sesion[0],
-                "ClienteID": sesion[1],
-                "NombreCliente": sesion[2],
-                "NombreUsuario": sesion[3],
-                "FechaCierre": sesion[4],
-                "FechaInicio": sesion[5],
-                "IP": sesion[6]
+                "SesionID": sesion["SesionID"],
+                "ClienteID": sesion["ClienteID"],
+                "NombreCliente": sesion["Nombre"],
+                "NombreUsuario": sesion["NombreUsuario"],
+                "FechaCierre": sesion["FechaCierre"],
+                "FechaInicio": sesion["FechaInicio"],
+                "IP": sesion["IP"]
             }
             for sesion in sesiones
         ]
         return lista_sesiones
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="localhost", port=8000)
-
-
-
-
-
-
-
-
-
-
 
 # Configura la carpeta 'imgs' para servir archivos estáticos
 app.mount("/imgs", StaticFiles(directory="imgs"), name="imgs")
@@ -345,8 +327,6 @@ def crear_producto(
     imagen: Optional[UploadFile] = File(None)
 ):
     try:
-        
-        
         filename = None
         if imagen:
             # Guardar la imagen
@@ -357,7 +337,7 @@ def crear_producto(
         
         query = """
         INSERT INTO Productos (Nombre, Precio, Stock, Imagen)
-        VALUES (?, ?, ?, ?);
+        VALUES (%s, %s, %s, %s);
         """
         params = (nombre, precio, stock, filename)
         ejecutar_consulta(query, params)
@@ -366,11 +346,11 @@ def crear_producto(
         producto_creado = ejecutar_consulta(query)[0]
         
         return Producto(
-            id=producto_creado[0], 
-            nombre=producto_creado[1], 
-            precio=producto_creado[2], 
-            stock=producto_creado[3], 
-            imagen=f"/imgs/{producto_creado[4]}" if producto_creado[4] else None
+            id=producto_creado['ProductoID'], 
+            nombre=producto_creado['Nombre'], 
+            precio=producto_creado['Precio'], 
+            stock=producto_creado['Stock'], 
+            imagen=f"/imgs/{producto_creado['Imagen']}" if producto_creado['Imagen'] else None
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -381,33 +361,35 @@ def obtener_productos():
     productos = ejecutar_consulta(query)
     lista_productos = [
         Producto(
-            id=producto[0], 
-            nombre=producto[1], 
-            precio=producto[2], 
-            stock=producto[3], 
-            imagen=f"/imgs/{producto[4]}" if producto[4] else None
+            id=producto['ProductoID'], 
+            nombre=producto['Nombre'], 
+            precio=producto['Precio'], 
+            stock=producto['Stock'], 
+            imagen=f"/imgs/{producto['Imagen']}" if producto['Imagen'] else None
         )
         for producto in productos
     ]
     return lista_productos
+
 @app.put("/productos/{producto_id}", response_model=Producto)
 def actualizar_producto(producto_id: int, producto: ProductoCreateUpdate):
-    #if usuario_actual["tipo_usuario"] != "administrador":
-     #   raise HTTPException(status_code=403, detail="Acceso denegado")
     try:
         query = """
-        UPDATE Productos SET Nombre = ?, Precio = ?, Stock = ?
-        WHERE ProductoID = ?;
+        UPDATE Productos SET Nombre = %s, Precio = %s, Stock = %s
+        WHERE ProductoID = %s;
         """
         params = (producto.nombre, producto.precio, producto.stock, producto_id)
         ejecutar_consulta(query, params)
         
-        query = "SELECT ProductoID, Nombre, Precio, Stock FROM Productos WHERE ProductoID = ?;"
+        query = "SELECT ProductoID, Nombre, Precio, Stock FROM Productos WHERE ProductoID = %s;"
         producto_actualizado = ejecutar_consulta(query, (producto_id,))[0]
         
-        registrar_auditoria("UPDATE", "Productos", producto_id, usuario_actual["nombre_usuario"])
-        
-        return Producto(id=producto_actualizado[0], nombre=producto_actualizado[1], precio=producto_actualizado[2], stock=producto_actualizado[3])
+        return Producto(
+            id=producto_actualizado['ProductoID'], 
+            nombre=producto_actualizado['Nombre'], 
+            precio=producto_actualizado['Precio'], 
+            stock=producto_actualizado['Stock']
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -415,7 +397,7 @@ def actualizar_producto(producto_id: int, producto: ProductoCreateUpdate):
 def eliminar_producto(producto_id: int):
     try:
         # Primero, verificar si el producto existe
-        query_verificar_producto = "SELECT ProductoID FROM Productos WHERE ProductoID = ?;"
+        query_verificar_producto = "SELECT ProductoID FROM Productos WHERE ProductoID = %s;"
         params_producto = (producto_id,)
         producto = ejecutar_consulta(query_verificar_producto, params_producto)
         
@@ -423,24 +405,19 @@ def eliminar_producto(producto_id: int):
             raise HTTPException(status_code=404, detail="Producto no encontrado")
         
         # Eliminar el producto de la tabla Productos
-        query_eliminar_producto = "DELETE FROM Productos WHERE ProductoID = ?;"
+        query_eliminar_producto = "DELETE FROM Productos WHERE ProductoID = %s;"
         ejecutar_consulta(query_eliminar_producto, params_producto)
         
-        registrar_auditoria("DELETE", "Productos", producto_id, usuario_actual["nombre_usuario"])
-
         return {"mensaje": "Producto eliminado exitosamente"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-
 
 @app.post("/comprar-producto")
 def comprar_producto(compra: CompraRequest):
     try:
         # Verificar que el producto existe y obtener su stock y precio
         query_producto = """
-        SELECT ProductoID, Nombre, Precio, Stock FROM Productos WHERE Nombre = ?;
+        SELECT ProductoID, Nombre, Precio, Stock FROM Productos WHERE Nombre = %s;
         """
         params_producto = (compra.nombre_producto,)
         producto = ejecutar_consulta(query_producto, params_producto)
@@ -448,7 +425,10 @@ def comprar_producto(compra: CompraRequest):
         if not producto:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
         
-        producto_id, nombre_producto, precio, stock_disponible = producto[0]
+        producto_id = producto[0]['ProductoID']
+        nombre_producto = producto[0]['Nombre']
+        precio = producto[0]['Precio']
+        stock_disponible = producto[0]['Stock']
         
         # Verificar que hay suficiente stock para la compra
         if stock_disponible < compra.cantidad:
@@ -459,7 +439,7 @@ def comprar_producto(compra: CompraRequest):
         
         # Llamar al procedimiento almacenado para registrar el pedido y la venta
         query_registrar_pedido = """
-        EXEC RegistrarPedido @ClienteID = ?, @ProductoID = ?, @Cantidad = ?;
+        EXEC RegistrarPedido @ClienteID = %s, @ProductoID = %s, @Cantidad = %s;
         """
         cliente_id = usuario_actual.get("cliente_id")  # Suponiendo que 'usuario_actual' tiene el ID del cliente
         if not cliente_id:
@@ -482,37 +462,37 @@ def cancelar_pedido(pedido_id: int):
     try:
         # Verificar que el pedido pertenece al cliente actual
         query_verificar = """
-        SELECT PedidoID, ClienteID, ProductoID, Cantidad FROM Pedidos WHERE PedidoID = ?;
+        SELECT PedidoID, ClienteID, ProductoID, Cantidad FROM Pedidos WHERE PedidoID = %s;
         """
         params_verificar = (pedido_id,)
         logging.debug(f"Ejecutando consulta de verificación: {query_verificar} con params: {params_verificar}")
         resultado = ejecutar_consulta(query_verificar, params_verificar)
         
-        if not resultado or resultado[0][1] != usuario_actual["cliente_id"]:
+        if not resultado or resultado[0]['ClienteID'] != usuario_actual["cliente_id"]:
             logging.error(f"Pedido no encontrado o no autorizado para el pedido: {pedido_id}")
             raise HTTPException(status_code=403, detail="Pedido no encontrado o no autorizado")
         
         # Obtener los detalles del pedido
-        pedido_id, cliente_id, producto_id, cantidad = resultado[0]
+        pedido_id, cliente_id, producto_id, cantidad = resultado[0]['PedidoID'], resultado[0]['ClienteID'], resultado[0]['ProductoID'], resultado[0]['Cantidad']
         logging.debug(f"Detalles del pedido obtenidos: PedidoID={pedido_id}, ClienteID={cliente_id}, ProductoID={producto_id}, Cantidad={cantidad}")
         
         # Comenzar una transacción
-        with pyodbc.connect(conn_str) as conn:
-            cursor = conn.cursor()
+        with pymssql.connect(server=server, user=username, password=password, database=database) as conn:
+            cursor = conn.cursor(as_dict=True)
             
             try:
                 logging.info(f"Insertando en PedidosCancelados: PedidoID={pedido_id}, ClienteID={cliente_id}, ProductoID={producto_id}, Cantidad={cantidad}")
                 # Insertar en PedidosCancelados
                 query_insertar_cancelado = """
                 INSERT INTO PedidosCancelados (PedidoID, ClienteID, ProductoID, Cantidad, FechaCancelacion)
-                VALUES (?, ?, ?, ?, GETDATE());
+                VALUES (%s, %s, %s, %s, GETDATE());
                 """
                 cursor.execute(query_insertar_cancelado, (pedido_id, cliente_id, producto_id, cantidad))
                 
                 logging.info(f"Eliminando ventas relacionadas para el pedido: PedidoID={pedido_id}")
                 # Eliminar ventas relacionadas con el pedido
                 query_eliminar_ventas = """
-                DELETE FROM Ventas WHERE PedidoID = ?;
+                DELETE FROM Ventas WHERE PedidoID = %s;
                 """
                 cursor.execute(query_eliminar_ventas, (pedido_id,))
                 
@@ -520,15 +500,15 @@ def cancelar_pedido(pedido_id: int):
                 # Actualizar el stock
                 query_actualizar_stock = """
                 UPDATE Productos
-                SET Stock = Stock + ?
-                WHERE ProductoID = ?;
+                SET Stock = Stock + %s
+                WHERE ProductoID = %s;
                 """
                 cursor.execute(query_actualizar_stock, (cantidad, producto_id))
                 
                 logging.info(f"Eliminando de la tabla Pedidos: PedidoID={pedido_id}")
                 # Eliminar el pedido de la tabla Pedidos
                 query_eliminar_pedido = """
-                DELETE FROM Pedidos WHERE PedidoID = ?;
+                DELETE FROM Pedidos WHERE PedidoID = %s;
                 """
                 cursor.execute(query_eliminar_pedido, (pedido_id,))
                 
@@ -546,9 +526,6 @@ def cancelar_pedido(pedido_id: int):
         logging.error(f"Error al procesar la cancelación del pedido: {pedido_id}, error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
-
 @app.get("/mis-pedidos", response_model=List[dict])
 def obtener_mis_pedidos():
     try:
@@ -559,26 +536,24 @@ def obtener_mis_pedidos():
         SELECT p.PedidoID, p.Cantidad, p.FechaCompra, pr.Nombre, pr.Precio * p.Cantidad AS PrecioTotal
         FROM Pedidos p
         JOIN Productos pr ON p.ProductoID = pr.ProductoID
-        WHERE p.ClienteID = ?;
+        WHERE p.ClienteID = %s;
         """
         params_pedidos = (cliente_id,)
         pedidos = ejecutar_consulta(query_pedidos, params_pedidos)
         
         lista_pedidos = [
             {
-                "pedido_id": pedido[0],
-                "nombre_producto": pedido[3],
-                "precio_total": float(pedido[4]),  # Asegurarse de que precio_total sea un float
-                "cantidad": pedido[1],
-                "fecha_pedido": pedido[2].strftime('%Y-%m-%d %H:%M:%S')
+                "pedido_id": pedido['PedidoID'],
+                "nombre_producto": pedido['Nombre'],
+                "precio_total": float(pedido['PrecioTotal']),  # Asegurarse de que precio_total sea un float
+                "cantidad": pedido['Cantidad'],
+                "fecha_pedido": pedido['FechaCompra'].strftime('%Y-%m-%d %H:%M:%S')
             }
             for pedido in pedidos
         ]
         return lista_pedidos
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
 
 @app.get("/pedidos", response_model=List[dict])
 def obtener_todos_los_pedidos():
@@ -594,11 +569,11 @@ def obtener_todos_los_pedidos():
         
         lista_pedidos = [
             {
-                "pedido_id": pedido[0],
-                "cliente_nombre": pedido[1],
-                "producto_nombre": pedido[2],
-                "cantidad": pedido[3],
-                "fecha_compra": pedido[4].strftime('%Y-%m-%d %H:%M:%S')
+                "pedido_id": pedido['PedidoID'],
+                "cliente_nombre": pedido['ClienteNombre'],
+                "producto_nombre": pedido['ProductoNombre'],
+                "cantidad": pedido['Cantidad'],
+                "fecha_compra": pedido['FechaCompra'].strftime('%Y-%m-%d %H:%M:%S')
             }
             for pedido in pedidos
         ]
@@ -606,66 +581,43 @@ def obtener_todos_los_pedidos():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
-import logging
-
-logging.basicConfig(level=logging.INFO)
-
 @app.delete("/productos/{producto_id}")
 def eliminar_producto(producto_id: int):
-    #if usuario_actual["tipo_usuario"] != "administrador":
-    #   raise HTTPException(status_code=403, detail="Acceso denegado")
     try:
         # Actualizar registros en Pedidos para establecer ProductoID a NULL
-        query_actualizar_pedidos = "UPDATE Pedidos SET ProductoID = NULL WHERE ProductoID = ?"
+        query_actualizar_pedidos = "UPDATE Pedidos SET ProductoID = NULL WHERE ProductoID = %s"
         params_pedidos = (producto_id,)
         ejecutar_consulta(query_actualizar_pedidos, params_pedidos)
         
         # Actualizar registros en PedidosCancelados para establecer ProductoID a NULL
-        query_actualizar_pedidos_cancelados = "UPDATE PedidosCancelados SET ProductoID = NULL WHERE ProductoID = ?"
+        query_actualizar_pedidos_cancelados = "UPDATE PedidosCancelados SET ProductoID = NULL WHERE ProductoID = %s"
         params_pedidos_cancelados = (producto_id,)
         ejecutar_consulta(query_actualizar_pedidos_cancelados, params_pedidos_cancelados)
         
         # Finalmente, eliminar el producto
-        query_eliminar_producto = "DELETE FROM Productos WHERE ProductoID = ?;"
+        query_eliminar_producto = "DELETE FROM Productos WHERE ProductoID = %s;"
         params_producto = (producto_id,)
         ejecutar_consulta(query_eliminar_producto, params_producto)
-        
-        registrar_auditoria("DELETE", "Productos", producto_id, usuario_actual["nombre_usuario"])
         
         return {"mensaje": "Producto eliminado exitosamente"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-    
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="localhost", port=8000)
-
 @app.get("/ganancia-total", response_model=dict)
 def obtener_ganancia_total():
-    if usuario_actual["tipo_usuario"] != "administrador":
-        raise HTTPException(status_code=403, detail="Acceso denegado")
-
     try:
         query = """
         SELECT SUM(TotalCompra) AS GananciaTotal
         FROM Ventas;
         """
         resultado = ejecutar_consulta(query)
-        ganancia_total = resultado[0][0] if resultado and resultado[0][0] else 0
+        ganancia_total = resultado[0]['GananciaTotal'] if resultado and resultado[0]['GananciaTotal'] else 0
         return {"GananciaTotal": ganancia_total}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/productos-mas-solicitados", response_model=List[dict])
 def obtener_productos_mas_solicitados():
-    #if usuario_actual["tipo_usuario"] != "administrador":
-     #   raise HTTPException(status_code=403, detail="Acceso denegado")
-
     try:
         query = """
         SELECT NombreProducto, SUM(Cantidad) AS TotalVendido
@@ -676,8 +628,8 @@ def obtener_productos_mas_solicitados():
         productos = ejecutar_consulta(query)
         lista_productos = [
             {
-                "NombreProducto": producto[0],
-                "TotalVendido": producto[1]
+                "NombreProducto": producto['NombreProducto'],
+                "TotalVendido": producto['TotalVendido']
             }
             for producto in productos
         ]
@@ -685,12 +637,8 @@ def obtener_productos_mas_solicitados():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/verificar-stock", response_model=List[dict])
 def verificar_stock_productos():
-    #if usuario_actual["tipo_usuario"] != "administrador":
-     #   raise HTTPException(status_code=403, detail="Acceso denegado")
-    
     try:
         query = """
         SELECT ProductoID, Nombre, Stock
@@ -699,10 +647,10 @@ def verificar_stock_productos():
         productos = ejecutar_consulta(query)
         lista_productos = [
             {
-                "ProductoID": producto[0],
-                "Nombre": producto[1],
-                "Stock": producto[2],
-                "Mensaje": "Favor de actualizar inventario" if producto[2] < 10 else ""
+                "ProductoID": producto['ProductoID'],
+                "Nombre": producto['Nombre'],
+                "Stock": producto['Stock'],
+                "Mensaje": "Favor de actualizar inventario" if producto['Stock'] < 10 else ""
             }
             for producto in productos
         ]
@@ -721,14 +669,14 @@ def obtener_ventas():
         
         lista_ventas = [
             Venta(
-                venta_id=venta[0],
-                pedido_id=venta[1],
-                cliente_id=venta[2],
-                nombre_usuario=venta[3],
-                nombre_producto=venta[4],
-                cantidad=venta[5],
-                total_compra=venta[6],
-                fecha_venta=venta[7].strftime('%Y-%m-%d %H:%M:%S')
+                venta_id=venta['VentaID'],
+                pedido_id=venta['PedidoID'],
+                cliente_id=venta['ClienteID'],
+                nombre_usuario=venta['NombreUsuario'],
+                nombre_producto=venta['NombreProducto'],
+                cantidad=venta['Cantidad'],
+                total_compra=venta['TotalCompra'],
+                fecha_venta=venta['FechaVenta'].strftime('%Y-%m-%d %H:%M:%S')
             )
             for venta in ventas
         ]
@@ -736,10 +684,6 @@ def obtener_ventas():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    
-    
-    
-    
 class DatosPanel(BaseModel):
     productos: int
     stock: int
@@ -767,7 +711,7 @@ def get_datos_panel():
         query_clientes = "SELECT COUNT(*) FROM Clientes;"
         query_pedidos = "SELECT COUNT(*) FROM Pedidos;"
 
-        productos = ejecutar_consulta(query_productos)[0][0]
+        productos = ejecutar_consulta(query_productos)[0]['']
         stock = ejecutar_consulta(query_stock)[0][0]
         clientes = ejecutar_consulta(query_clientes)[0][0]
         pedidos = ejecutar_consulta(query_pedidos)[0][0]
@@ -795,12 +739,16 @@ def get_datos_graficas():
         barras = ejecutar_consulta(query_barras)
         pastel = ejecutar_consulta(query_pastel)
 
-        categorias_barras = [meses_espanol[row[0]] for row in barras]
-        data_barras = [row[1] for row in barras]
+        categorias_barras = [meses_espanol[row['Mes']] for row in barras]
+        data_barras = [row['Total'] for row in barras]
 
-        categorias_pastel = [row[0] for row in pastel]
-        data_pastel = [row[1] for row in pastel]
+        categorias_pastel = [row['Nombre'] for row in pastel]
+        data_pastel = [row['Total'] for row in pastel]
 
         return DatosGraficas(barras=data_barras, categoriasBarras=categorias_barras, pastel=data_pastel, categoriasPastel=categorias_pastel)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="localhost", port=8000)

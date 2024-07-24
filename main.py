@@ -10,9 +10,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 import bcrypt
 from dotenv import load_dotenv  # Importar la librería
-from fastapi.middleware.sessions import SessionMiddleware
-from itsdangerous import URLSafeTimedSerializer
-
 
 load_dotenv()  # Cargar el archivo .env
 
@@ -105,7 +102,11 @@ class ClienteCreate(BaseModel):
     nombre_usuario: str
     contrasena: str
 
+class LoginRequest(BaseModel):
+    nombre_usuario: str
+    contrasena: str
     
+
 class LoginResponse(BaseModel):
     mensaje: str
     tipo_usuario: Optional[str] = None
@@ -213,72 +214,65 @@ async def registrar_cliente(cliente: ClienteCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-app = FastAPI()
-
-SECRET_KEY = "your_secret_key"
-
-class LoginRequest(BaseModel):
-    nombre_usuario: str
-    contrasena: str
-
-SECRET_KEY = "your-secret-key"
-s = URLSafeTimedSerializer(SECRET_KEY)
-
-@app.middleware("http")
-async def session_middleware(request: Request, call_next):
-    session_token = request.cookies.get("session_token")
-    if session_token:
-        try:
-            session_data = s.loads(session_token)
-            request.state.user_id = session_data.get("user_id")
-        except:
-            request.state.user_id = None
-    else:
-        request.state.user_id = None
-
-    response = await call_next(request)
-
-    # Example of setting a session cookie
-    if not session_token:
-        session_data = {"user_id": 123}
-        session_token = s.dumps(session_data)
-        response.set_cookie(key="session_token", value=session_token)
-
-    return response
-
-@app.get("/items/")
-async def read_items(request: Request):
-    user_id = request.state.user_id
-    return {"user_id": user_id}
+# Endpoint de inicio de sesión
+from fastapi import Request
 
 @app.post("/login")
-async def login(request: Request, login_request: LoginRequest):
-    user = find_user_by_username(login_request.nombre_usuario)
-    if not user or not bcrypt.checkpw(login_request.contrasena.encode('utf-8'), user['hashed_password'].encode('utf-8')):
-        raise HTTPException(status_code=400, detail="Usuario o contraseña incorrectos")
+async def iniciar_sesion(login: LoginRequest, request: Request):
+    try:
+        print(f"Intentando iniciar sesión: nombre_usuario={login.nombre_usuario}")
 
-    request.session['user_id'] = user['id']
-    request.session['username'] = user['nombre_usuario']
-    return {"message": "Inicio de sesión exitoso"}
+        # Verificar si el usuario es un cliente
+        query_cliente = """
+        SELECT ClienteID, Contrasena FROM Clientes WHERE NombreUsuario = %s;
+        """
+        params_cliente = (login.nombre_usuario,)
+        resultado_cliente = ejecutar_consulta(query_cliente, params_cliente)
+        
+        if resultado_cliente:
+            cliente_id = resultado_cliente[0]['ClienteID']
+            hashed_password = resultado_cliente[0]['Contrasena']
+            print(f"Cliente encontrado: ClienteID={cliente_id}")
 
-def find_user_by_username(username: str):
-    # Simulación de una función que busca un usuario en la base de datos
-    # Esta función debe devolver el usuario con la contraseña cifrada
-    users = {
-        "testuser": {
-            "id": 1,
-            "nombre_usuario": "testuser",
-            "hashed_password": bcrypt.hashpw("password".encode('utf-8'), bcrypt.gensalt())
-        }
-    }
-    return users.get(username)
+            if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
+                # Manejo de sesión para el cliente
+                query_sesion = """
+                IF EXISTS (SELECT 1 FROM SesionesClientes WHERE ClienteID = %s)
+                    UPDATE SesionesClientes SET FechaInicio = GETDATE(), IP = %s WHERE ClienteID = %s
+                ELSE
+                    INSERT INTO SesionesClientes (ClienteID, FechaInicio, IP) VALUES (%s, GETDATE(), %s);
+                """
+                client_ip = request.client.host
+                params_sesion = (cliente_id, client_ip, cliente_id, cliente_id, client_ip)
+                ejecutar_consulta(query_sesion, params_sesion)
 
-@app.get("/protected")
-async def protected_route(request: Request):
-    if "user_id" not in request.session:
-        raise HTTPException(status_code=403, detail="No autorizado")
-    return {"message": "Contenido protegido"}
+                return {"mensaje": "Inicio de sesión exitoso", "tipo_usuario": "cliente"}
 
+        # Verificar si el usuario es un administrador
+        query_admin = """
+        SELECT AdministradorID, Contrasena FROM Administradores WHERE NombreUsuario = %s;
+        """
+        params_admin = (login.nombre_usuario,)
+        resultado_admin = ejecutar_consulta(query_admin, params_admin)
+
+        if resultado_admin:
+            administrador_id = resultado_admin[0]['AdministradorID']
+            hashed_password = resultado_admin[0]['Contrasena']
+            print(f"Administrador encontrado: AdministradorID={administrador_id}")
+
+            if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
+                return {"mensaje": "Inicio de sesión exitoso", "tipo_usuario": "administrador"}
+
+        # Si no se encuentra el usuario o las contraseñas no coinciden
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas o usuario no encontrado")
+    except HTTPException as http_err:
+        # Devolvemos la excepción HTTP tal como está
+        print(f"Error HTTP: {str(http_err.detail)}")
+        raise
+    except Exception as e:
+        # Manejo de otros errores
+        print(f"Error durante el inicio de sesión: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 

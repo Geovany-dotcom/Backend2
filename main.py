@@ -23,7 +23,7 @@ origins = [
     "http://127.0.0.1:5500",  # Reemplaza con la URL exacta de tu frontend
     "http://127.0.0.1:52727",
     "http://127.0.0.1:60642",
-    "inovabyte-2-g4bml1egx.vercel.app"
+    "https://inovabyte-2.vercel.app",
     
 
 ]

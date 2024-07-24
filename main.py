@@ -27,7 +27,7 @@ origins = [
     "http://127.0.0.1:5500",  # Reemplaza con la URL exacta de tu frontend
     "http://127.0.0.1:52727",
     "http://127.0.0.1:60642",
-    "https://inovabyte-2.vercel.app",
+    "https://pagina-final-theta.vercel.app",
 ]
 
 app.add_middleware(

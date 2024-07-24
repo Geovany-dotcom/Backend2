@@ -191,9 +191,11 @@ app.add_middleware(AuthMiddleware)
 # Endpoint para obtener el rol del usuario
 @app.get("/user-role")
 def get_user_role():
+    print(f"Current user: {usuario_actual}")  # Log para depuración
     if not usuario_actual["nombre_usuario"]:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return {"role": usuario_actual["tipo_usuario"]}
+
 
 # Endpoint para la página de usuario
 @app.get("/user-page")

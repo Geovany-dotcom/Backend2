@@ -3,7 +3,7 @@ services:
     name: fastapi-backend
     env: python
     plan: free
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "apt-get update && apt-get install -y curl gnupg unixodbc-dev && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && curl https://packages.microsoft.com/config/debian/10/prod.list > /etc/apt/sources.list.d/mssql-release.list && apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql17 && pip install -r requirements.txt"
     startCommand: "./start.sh"
     envVars:
       - key: DB_SERVER
@@ -14,13 +14,3 @@ services:
         value: "geovanydominguez"
       - key: DB_PASSWORD
         value: "Flacodeoro55"
-    installPackages:
-      - curl
-      - gnupg
-      - unixodbc-dev
-    postBuild:
-      commands:
-        - curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
-        - curl https://packages.microsoft.com/config/debian/10/prod.list > /etc/apt/sources.list.d/mssql-release.list
-        - apt-get update
-        - ACCEPT_EULA=Y apt-get install -y msodbcsql17

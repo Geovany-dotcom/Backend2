@@ -9,13 +9,18 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 import bcrypt
+from dotenv import load_dotenv  # Importar la librería
+
+load_dotenv()  # Cargar el archivo .env
 
 app = FastAPI()
 
+# Cargar las variables de entorno
 server = os.getenv('DB_SERVER')
 database = os.getenv('DB_DATABASE')
 username = os.getenv('DB_USERNAME')
 password = os.getenv('DB_PASSWORD')
+
 
 # Configuración de CORS para permitir el origen específico y credenciales
 origins = [
@@ -44,15 +49,36 @@ def ejecutar_consulta(query, params=None):
             cursor.execute(query)
         if query.strip().upper().startswith("SELECT"):
             resultados = cursor.fetchall()
-            conn.close()
-            return resultados
         else:
             conn.commit()
-            conn.close()
-            return True
+            resultados = True
+        conn.close()
+        return resultados
     except Exception as e:
         print(f"Error al conectar con la base de datos: {e}")
         return []
+
+# Prueba de conexión
+try:
+    conn = pymssql.connect(server=server, user=username, password=password, database=database)
+    print("Connection successful")
+    conn.close()
+except Exception as e:
+    print(f"Connection failed: {e}")
+
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+
+@app.post("/login")
+def login(username: str, password: str):
+    query = "SELECT * FROM Users WHERE username=%s AND password=%s"
+    params = (username, password)
+    result = ejecutar_consulta(query, params)
+    if result:
+        return {"status": "success", "data": result}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid username or password")
 
 def registrar_auditoria(tipo_operacion, tabla, registro_id, usuario):
     query = """
@@ -61,17 +87,6 @@ def registrar_auditoria(tipo_operacion, tabla, registro_id, usuario):
     """
     params = (tipo_operacion, tabla, registro_id, usuario)
     ejecutar_consulta(query, params)
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-@app.get("/productos")
-async def obtener_productos():
-    query = "SELECT * FROM Productos"
-    productos = ejecutar_consulta(query)
-    return productos
-
 
 class ClienteCreate(BaseModel):
     nombre: str

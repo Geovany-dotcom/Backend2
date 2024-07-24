@@ -1,6 +1,6 @@
 import os
+import pymssql
 from fastapi import FastAPI, HTTPException, Request, File, UploadFile, Form, status, Depends
-import pyodbc
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,8 +24,6 @@ origins = [
     "http://127.0.0.1:52727",
     "http://127.0.0.1:60642",
     "https://inovabyte-2.vercel.app",
-    
-
 ]
 
 app.add_middleware(
@@ -36,8 +34,18 @@ app.add_middleware(
     allow_headers=["*"],  # Puedes limitar las cabeceras específicas si es necesario
 )
 
-# Cadena de conexión a la base de datos
-conn_str = f'DRIVER={{ODBC Driver 17 for SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}'
+# Función para ejecutar consultas
+def ejecutar_consulta(query):
+    try:
+        conn = pymssql.connect(server=server, user=username, password=password, database=database)
+        cursor = conn.cursor(as_dict=True)
+        cursor.execute(query)
+        resultados = cursor.fetchall()
+        conn.close()
+        return resultados
+    except Exception as e:
+        print(f"Error al conectar con la base de datos: {e}")
+        return []
 
 
 # Prueba de conexión

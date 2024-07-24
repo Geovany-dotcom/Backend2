@@ -53,16 +53,19 @@ def ejecutar_consulta(query, params=None):
             cursor.execute(query, params)
         else:
             cursor.execute(query)
+        
         if query.strip().upper().startswith("SELECT"):
             resultados = cursor.fetchall()
         else:
             conn.commit()
             resultados = True
+
         conn.close()
         return resultados
     except Exception as e:
         print(f"Error al conectar con la base de datos: {e}")
-        return []
+        return None
+
 
 # Prueba de conexión
 try:
@@ -225,7 +228,6 @@ async def registrar_cliente(cliente: ClienteCreate):
 @app.post("/login", response_model=LoginResponse)
 async def iniciar_sesion(login: LoginRequest, request: Request):
     try:
-        # Verificar si el usuario es un cliente
         query_cliente = """
         SELECT ClienteID, Contrasena FROM Clientes WHERE NombreUsuario = %s;
         """
@@ -240,7 +242,6 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
                 usuario_actual["nombre_usuario"] = login.nombre_usuario
                 usuario_actual["cliente_id"] = cliente_id
 
-                # Registrar o actualizar sesión del cliente
                 query_sesion = """
                 IF EXISTS (SELECT 1 FROM SesionesClientes WHERE ClienteID = %s)
                     UPDATE SesionesClientes SET FechaInicio = GETDATE(), IP = %s WHERE ClienteID = %s
@@ -271,7 +272,8 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
 
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error during login: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @app.post("/logout", response_model=LoginResponse)

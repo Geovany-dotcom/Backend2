@@ -155,27 +155,15 @@ class Venta(BaseModel):
 
 
 
-
-
-usuario_actual = {"tipo_usuario": None, "nombre_usuario": None, "cliente_id": None}
-
-
-
-
-
-
-
-
-
-
+# Middleware de autenticación
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Definir rutas que no requieren autenticación
-        allowed_paths = ["/login", "/cliente/registrar", "/CargaLogin.html", "/productos"]
+        allowed_paths = ["/login", "/cliente/registrar", "/static/Login/CargaLogin.html", "/productos"]
 
         # Permitir acceso público a las rutas permitidas
         if request.url.path not in allowed_paths and not usuario_actual.get("nombre_usuario"):
-            return RedirectResponse(url='/CargaLogin.html')
+            return RedirectResponse(url='/static/Login/CargaLogin.html')
         
         # Llamar al siguiente middleware o al controlador de endpoint
         response = await call_next(request)
@@ -183,6 +171,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
 # Agregar el middleware a la aplicación FastAPI
 app.add_middleware(AuthMiddleware)
+
+# Variable global para almacenar el estado del usuario actual
+usuario_actual = {"tipo_usuario": None, "nombre_usuario": None, "cliente_id": None}
 
 
 

@@ -248,7 +248,7 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
                     INSERT INTO SesionesClientes (ClienteID, FechaInicio, IP) VALUES (%s, GETDATE(), %s);
                 """
                 client_ip = request.client.host
-                params_sesion = (usuario_actual["cliente_id"], client_ip, usuario_actual["cliente_id"], usuario_actual["cliente_id"], client_ip)
+                params_sesion = (cliente_id, client_ip, cliente_id, cliente_id, client_ip)
                 ejecutar_consulta(query_sesion, params_sesion)
 
                 return LoginResponse(mensaje="Inicio de sesión exitoso", tipo_usuario="cliente")
@@ -262,8 +262,8 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
 
         if resultado_admin:
             administrador_id = resultado_admin[0]['AdministradorID']
-            contrasena = resultado_admin[0]['Contrasena']
-            if login.contrasena == contrasena:
+            hashed_password = resultado_admin[0]['Contrasena']
+            if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
                 usuario_actual["tipo_usuario"] = "administrador"
                 usuario_actual["nombre_usuario"] = login.nombre_usuario
                 usuario_actual["administrador_id"] = administrador_id
@@ -272,6 +272,7 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/logout", response_model=LoginResponse)
 def cerrar_sesion():

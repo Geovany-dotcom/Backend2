@@ -10,6 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 import bcrypt
 from dotenv import load_dotenv  # Importar la librería
+from fastapi.middleware.sessions import SessionMiddleware
 
 load_dotenv()  # Cargar el archivo .env
 

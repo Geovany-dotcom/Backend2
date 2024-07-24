@@ -44,16 +44,6 @@ app.add_middleware(
     allow_headers=["*"],  # Puedes limitar las cabeceras específicas si es necesario
 )
 
-from fastapi.staticfiles import StaticFiles
-
-app = FastAPI()
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
 # Función para ejecutar consultas
 def ejecutar_consulta(query, params=None):
     try:

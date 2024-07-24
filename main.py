@@ -225,9 +225,13 @@ async def registrar_cliente(cliente: ClienteCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Endpoint de inicio de sesión
 @app.post("/login", response_model=LoginResponse)
 async def iniciar_sesion(login: LoginRequest, request: Request):
     try:
+        print(f"Recibido: nombre_usuario={login.nombre_usuario}, contrasena={login.contrasena}")
+
+        # Verificar si el usuario es un cliente
         query_cliente = """
         SELECT ClienteID, Contrasena FROM Clientes WHERE NombreUsuario = %s;
         """
@@ -237,11 +241,10 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
         if resultado_cliente:
             cliente_id = resultado_cliente[0]['ClienteID']
             hashed_password = resultado_cliente[0]['Contrasena']
-            if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
-                usuario_actual["tipo_usuario"] = "cliente"
-                usuario_actual["nombre_usuario"] = login.nombre_usuario
-                usuario_actual["cliente_id"] = cliente_id
+            print(f"Cliente encontrado: ClienteID={cliente_id}")
 
+            if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
+                # Manejo de sesión
                 query_sesion = """
                 IF EXISTS (SELECT 1 FROM SesionesClientes WHERE ClienteID = %s)
                     UPDATE SesionesClientes SET FechaInicio = GETDATE(), IP = %s WHERE ClienteID = %s
@@ -264,15 +267,14 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
         if resultado_admin:
             administrador_id = resultado_admin[0]['AdministradorID']
             hashed_password = resultado_admin[0]['Contrasena']
+            print(f"Administrador encontrado: AdministradorID={administrador_id}")
+
             if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
-                usuario_actual["tipo_usuario"] = "administrador"
-                usuario_actual["nombre_usuario"] = login.nombre_usuario
-                usuario_actual["administrador_id"] = administrador_id
                 return LoginResponse(mensaje="Inicio de sesión exitoso", tipo_usuario="administrador")
 
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     except Exception as e:
-        print(f"Error during login: {str(e)}")
+        print(f"Error durante el inicio de sesión: {str(e)}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 

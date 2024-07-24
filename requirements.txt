@@ -4,3 +4,4 @@ pydantic
 python-dotenv
 bcrypt
 pymssql
+itsdangerous

@@ -11,6 +11,8 @@ from fastapi.responses import RedirectResponse, JSONResponse
 import bcrypt
 from dotenv import load_dotenv  # Importar la librería
 from fastapi.middleware.sessions import SessionMiddleware
+from itsdangerous import URLSafeTimedSerializer
+
 
 load_dotenv()  # Cargar el archivo .env
 
@@ -219,7 +221,35 @@ class LoginRequest(BaseModel):
     nombre_usuario: str
     contrasena: str
 
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+SECRET_KEY = "your-secret-key"
+s = URLSafeTimedSerializer(SECRET_KEY)
+
+@app.middleware("http")
+async def session_middleware(request: Request, call_next):
+    session_token = request.cookies.get("session_token")
+    if session_token:
+        try:
+            session_data = s.loads(session_token)
+            request.state.user_id = session_data.get("user_id")
+        except:
+            request.state.user_id = None
+    else:
+        request.state.user_id = None
+
+    response = await call_next(request)
+
+    # Example of setting a session cookie
+    if not session_token:
+        session_data = {"user_id": 123}
+        session_token = s.dumps(session_data)
+        response.set_cookie(key="session_token", value=session_token)
+
+    return response
+
+@app.get("/items/")
+async def read_items(request: Request):
+    user_id = request.state.user_id
+    return {"user_id": user_id}
 
 @app.post("/login")
 async def login(request: Request, login_request: LoginRequest):

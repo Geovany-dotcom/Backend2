@@ -66,6 +66,7 @@ def ejecutar_consulta(query, params=None):
         print(f"Error al conectar con la base de datos: {e}")
         return None
 
+app.mount("/static", StaticFiles(directory="path/to/static/files"), name="static")
 
 # Prueba de conexión
 try:

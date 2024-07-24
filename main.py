@@ -8,13 +8,21 @@ import shutil
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
+from psycopg2.extras import RealDictCursor
 import bcrypt
 from dotenv import load_dotenv  # Importar la librería
 
 load_dotenv()  # Cargar el archivo .env
 
 app = FastAPI()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+app = FastAPI()
+
+# Configuración de la conexión a la base de datos
+def get_db_connection():
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    return conn
 # Cargar las variables de entorno
 server = os.getenv('DB_SERVER')
 database = os.getenv('DB_DATABASE')
@@ -94,6 +102,12 @@ def registrar_auditoria(tipo_operacion, tabla, registro_id, usuario):
     """
     params = (tipo_operacion, tabla, registro_id, usuario)
     ejecutar_consulta(query, params)
+
+
+
+class Credenciales(BaseModel):
+    nombre_usuario: str
+    contrasena: str
 
 class ClienteCreate(BaseModel):
     nombre: str
@@ -218,62 +232,27 @@ async def registrar_cliente(cliente: ClienteCreate):
 from fastapi import Request
 
 @app.post("/login")
-async def iniciar_sesion(login: LoginRequest, request: Request):
+async def iniciar_sesion(credenciales: Credenciales):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
     try:
-        print(f"Intentando iniciar sesión: nombre_usuario={login.nombre_usuario}")
-
-        # Verificar si el usuario es un cliente
-        query_cliente = """
-        SELECT ClienteID, Contrasena FROM Clientes WHERE NombreUsuario = %s;
-        """
-        params_cliente = (login.nombre_usuario,)
-        resultado_cliente = ejecutar_consulta(query_cliente, params_cliente)
+        cursor.execute("""
+            SELECT nombre_usuario FROM usuarios 
+            WHERE nombre_usuario = %s AND contrasena = %s
+        """, (credenciales.nombre_usuario, credenciales.contrasena))
         
-        if resultado_cliente:
-            cliente_id = resultado_cliente[0]['ClienteID']
-            hashed_password = resultado_cliente[0]['Contrasena']
-            print(f"Cliente encontrado: ClienteID={cliente_id}")
-
-            if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
-                # Manejo de sesión para el cliente
-                query_sesion = """
-                IF EXISTS (SELECT 1 FROM SesionesClientes WHERE ClienteID = %s)
-                    UPDATE SesionesClientes SET FechaInicio = GETDATE(), IP = %s WHERE ClienteID = %s
-                ELSE
-                    INSERT INTO SesionesClientes (ClienteID, FechaInicio, IP) VALUES (%s, GETDATE(), %s);
-                """
-                client_ip = request.client.host
-                params_sesion = (cliente_id, client_ip, cliente_id, cliente_id, client_ip)
-                ejecutar_consulta(query_sesion, params_sesion)
-
-                return {"mensaje": "Inicio de sesión exitoso", "tipo_usuario": "cliente"}
-
-        # Verificar si el usuario es un administrador
-        query_admin = """
-        SELECT AdministradorID, Contrasena FROM Administradores WHERE NombreUsuario = %s;
-        """
-        params_admin = (login.nombre_usuario,)
-        resultado_admin = ejecutar_consulta(query_admin, params_admin)
-
-        if resultado_admin:
-            administrador_id = resultado_admin[0]['AdministradorID']
-            hashed_password = resultado_admin[0]['Contrasena']
-            print(f"Administrador encontrado: AdministradorID={administrador_id}")
-
-            if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
-                return {"mensaje": "Inicio de sesión exitoso", "tipo_usuario": "administrador"}
-
-        # Si no se encuentra el usuario o las contraseñas no coinciden
-        raise HTTPException(status_code=401, detail="Credenciales incorrectas o usuario no encontrado")
-    except HTTPException as http_err:
-        # Devolvemos la excepción HTTP tal como está
-        print(f"Error HTTP: {str(http_err.detail)}")
-        raise
+        usuario = cursor.fetchone()
+        
+        if not usuario:
+            raise HTTPException(status_code=400, detail="Usuario o contraseña incorrectos.")
+        
+        return {"message": "Inicio de sesión exitoso", "nombre_usuario": usuario['nombre_usuario']}
     except Exception as e:
-        # Manejo de otros errores
-        print(f"Error durante el inicio de sesión: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
-
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @app.post("/logout", response_model=LoginResponse)

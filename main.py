@@ -263,8 +263,14 @@ async def iniciar_sesion(login: LoginRequest, request: Request):
             if bcrypt.checkpw(login.contrasena.encode('utf-8'), hashed_password.encode('utf-8')):
                 return {"mensaje": "Inicio de sesión exitoso", "tipo_usuario": "administrador"}
 
-        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+        # Si no se encuentra el usuario o las contraseñas no coinciden
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas o usuario no encontrado")
+    except HTTPException as http_err:
+        # Devolvemos la excepción HTTP tal como está
+        print(f"Error HTTP: {str(http_err.detail)}")
+        raise
     except Exception as e:
+        # Manejo de otros errores
         print(f"Error durante el inicio de sesión: {str(e)}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 

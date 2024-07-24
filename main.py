@@ -214,9 +214,6 @@ async def registrar_cliente(cliente: ClienteCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Endpoint de inicio de sesión
-from fastapi import Request
-
 @app.post("/login")
 async def iniciar_sesion(login: LoginRequest, request: Request):
     try:

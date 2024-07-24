@@ -12,11 +12,10 @@ import bcrypt
 
 app = FastAPI()
 
-# Cargar las variables de entorno
-server = os.getenv('DB_SERVER')
-database = os.getenv('DB_DATABASE')
-username = os.getenv('DB_USERNAME')
-password = os.getenv('DB_PASSWORD')
+server = os.getenv('DB_SERVER', 'inovabyte2.database.windows.net')
+database = os.getenv('DB_DATABASE', 'Inovabyte')
+username = os.getenv('DB_USERNAME', 'geovanydominguez')
+password = os.getenv('DB_PASSWORD', 'Flacodeoro55')
 
 # Configuración de CORS para permitir el origen específico y credenciales
 origins = [
